@@ -25,13 +25,13 @@
                 z-index: 2;
             }
 		</style>
-		<script src="scripts/three.min.js"></script>		
+		<script src="scripts/three.min.js"></script>
 	</head>
-	<body onload="init()">
+	<body>
 		<div id="app-view"></div>
         <div id="no-sensors">Your browser doesn't seem to support generic sensors. If you are running Chrome, please enable the Generic Sensor API in about:flags to run this demo.</div>
-        <video id="video" width="240" height="320" style="visibility: hidden; float:left;">Video stream not available.</video>
-        <canvas id="video_canvas" width="320" height="240" style=" float:left; display: none;"></canvas>
+        <video id="video" width="1" height="1" style="visibility: hidden; float:left; position: absolute; top: 0;">Video stream not available.</video>
+        <canvas id="video_canvas" width="2" height="2" style=" float:left; display: none;"></canvas>
 		<script src="app.js"></script>
 	</body>
 </html>

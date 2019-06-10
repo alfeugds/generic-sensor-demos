@@ -109,7 +109,7 @@ if ('RelativeOrientationSensor' in window) {
 }
 
 // Camera constants
-const farPlane = 300, fov = 75;
+const farPlane = 550, fov = 75;
 
 // Required for a three.js scene
 var camera, scene, renderer, oriSensor,
@@ -141,6 +141,7 @@ function initWebcam() {
     video.onplaying = () => {
         video.width = video.videoWidth;
         video.height = video.videoHeight
+        init();
     }
 
 }
@@ -197,7 +198,9 @@ function init() {
     material = new THREE.MeshBasicMaterial( { map: texture } );
 
     //var geometry = new THREE.PlaneBufferGeometry( 9, 16 );
-    var geometry = new THREE.PlaneGeometry( video.width , video.height  );
+    var aspect = video.videoWidth / video.videoHeight
+    var width = 500
+    var geometry = new THREE.PlaneGeometry( width , width / aspect  );
     geometry.scale( 0.5, 0.5, 0.5 );
 
     mesh = new THREE.Mesh( geometry, material );
