@@ -118,8 +118,9 @@ var camera, scene, renderer, oriSensor,
     videoTexture, movieMaterial,
     mesh,
     material, texture,
+    acl,
 
-    canvas,canvas_context, video, video_canvas;
+    canvas, canvas_context, video, video_canvas;
 
 video = document.getElementById('video');
 canvas = document.getElementById('video_canvas');
@@ -129,7 +130,7 @@ initWebcam();
 function initWebcam() {
     video = document.getElementById('video');
     canvas = document.getElementById('video_canvas');
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment'}  , audio: false })
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
         .then(function (stream) {
             video.srcObject = stream;;
             video.play();
@@ -139,9 +140,9 @@ function initWebcam() {
         });
 
     video.onplaying = () => {
-        video.width = video.videoWidth;
-        video.height = video.videoHeight
-        init();
+        // video.width = video.videoWidth;
+        // video.height = video.videoHeight
+        init()
     }
 
 }
@@ -154,6 +155,82 @@ if ('serviceWorker' in navigator) {
         // console.log('ServiceWorker registration failed: ', err);
         // });
     });
+}
+
+let speed = {
+    x:0,
+    y:0,
+    z:0,
+    timestamp:0
+}
+
+let i = 0.5
+function getDriftValue(x){
+    if(x > -i && x < 0){
+        return x + 0.1        
+    }else if(x > 0 && x < i){
+        return x - 0.1    
+    }
+    return x
+}
+
+function setToInitialState() {
+    var shaking = false;
+
+    function onreading() {
+        const shakeTreashold = 3 * 9.8;
+        const stillTreashold = 1;
+        let magnitude = Math.hypot(acl.x, acl.y, acl.z);
+
+        //   camera.position.z += acl.x
+        //   camera.position.y += acl.y
+        //   camera.position.x += acl.z
+
+        const m = 50000
+        // mesh.position.z += -acl.x * m
+        // mesh.position.y += -acl.y * m
+        // mesh.position.x += -acl.z * m
+        speed.timestamp = speed.timestamp || acl.timestamp
+
+        let time = acl.timestamp - speed.timestamp - 10
+        
+        const limit = 0.00,
+            factor = 0.03
+        
+        if ((acl.x > limit || acl.x < -limit) ||
+        (acl.y > limit || acl.y < -limit) ||
+        (acl.z > limit || acl.z < -limit)) {
+            speed.x = speed.x + acl.x * time
+            speed.y = speed.y + acl.y * time
+            speed.z = speed.z + acl.z * time
+
+            speed.x *= factor
+            speed.y *= factor
+            speed.z *= factor
+
+           
+            speed.x = getDriftValue(speed.x)
+            speed.y = getDriftValue(speed.y)
+            speed.z = getDriftValue(speed.z)
+            
+            camera.translateX(speed.x)
+            camera.translateY(speed.y)
+            camera.translateZ(speed.z)
+            console.log(`acl.x, acl.y, acl.z`, acl.x, acl.y, acl.z, acl)
+        }
+        
+        speed.timestamp = acl.timestamp
+        if (magnitude > shakeTreashold) {
+            console.log('magnitude', magnitude)
+            console.log('shakeTreashold', shakeTreashold)
+            shaking = true;
+        } else if (magnitude < stillTreashold && shaking) {
+            shaking = false;
+            //acl.removeEventListener('reading', onreading);
+        }
+    }
+
+    acl.addEventListener('reading', onreading);
 }
 
 // This function sets up the three.js scene, initializes the orientation sensor and 
@@ -172,12 +249,10 @@ function init() {
     oriSensor = new RelativeInclinationSensor({ frequency: 60 });
     oriSensor.onreading = render;   // When the sensor sends new values, render again using those
 
-    cube = new THREE.Mesh(new THREE.CubeGeometry(10, 10, 10), new THREE.MeshNormalMaterial());
-    cube.position.y = -35;
-    cube.position.x = 40;
-    cube.position.z = 0;
-    scene.add(cube);
 
+    acl = new LinearAccelerationSensor({ frequency: 60 });
+    acl.addEventListener('activate', setToInitialState);
+    acl.start();
 
     //videoTexture = new THREE.Texture( canvas );
     // videoTexture.minFilter = THREE.LinearFilter;
@@ -187,31 +262,40 @@ function init() {
     //obj.children[i].material = movieMaterial;
 
     // var x = window.innerWidth / 2 - 300;
-	// var y = window.innerHeight / 2 - 300;
+    // var y = window.innerHeight / 2 - 300;
     // var mesh = new THREE.Mesh(new THREE.PlaneGeometry(canvas.width, canvas.height, 10, 10), movieMaterial);
     // mesh.overdraw = true;
     // mesh.doubleSided = true;
-    
-    texture = new THREE.VideoTexture( video );
+
+    texture = new THREE.VideoTexture(video);
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
-    material = new THREE.MeshBasicMaterial( { map: texture } );
+    material = new THREE.MeshBasicMaterial({ map: texture });
 
     //var geometry = new THREE.PlaneBufferGeometry( 9, 16 );
     var aspect = video.videoWidth / video.videoHeight
-    var width = 500
+    var width = 560
     var geometry = new THREE.PlaneGeometry( width , width / aspect  );
-    geometry.scale( 0.5, 0.5, 0.5 );
 
-    mesh = new THREE.Mesh( geometry, material );
-    
-    mesh.position.x = 150; //x - canvas.width / 2;
+    geometry.scale(0.5, 0.5, 0.5);
+
+    mesh = new THREE.Mesh(geometry, material);
+
+    mesh.position.x = 140; //x - canvas.width / 2;
     mesh.position.y = -10; //y - canvas.height / 2;
 
 
-    mesh.lookAt( camera.position);
+    //mesh.lookAt( camera.position);
 
     scene.add(mesh);
+
+
+    //TEST CUBE
+    cube = new THREE.Mesh(new THREE.CubeGeometry(10, 10, 10), new THREE.MeshNormalMaterial());
+    cube.position.y = -35;
+    cube.position.x = 40;
+    cube.position.z = 0;
+    scene.add(cube);
 
     // TextureLoader for loading the image file
     let textureLoader = new THREE.TextureLoader();
@@ -274,9 +358,9 @@ function init() {
 
 // Renders the scene, orienting the camera according to the longitude and latitude
 function render() {
-    cube.rotation.x += 0.02;
-    cube.rotation.y += 0.0225;
-    cube.rotation.z += 0.0175;
+    // cube.rotation.x += 0.02;
+    // cube.rotation.y += 0.0225;
+    // cube.rotation.z += 0.0175;
 
     let targetX = (farPlane / 2) * Math.sin(Math.PI / 2 - oriSensor.latitude) * Math.cos(oriSensor.longitude);
     let targetY = (farPlane / 2) * Math.cos(Math.PI / 2 - oriSensor.latitude);
@@ -284,7 +368,7 @@ function render() {
     camera.lookAt(new THREE.Vector3(targetX, targetY, targetZ));
 
     // canvas_context = canvas.getContext('2d');
-	// canvas_context.drawImage(video, 0, 0, 320, 240);
+    // canvas_context.drawImage(video, 0, 0, 320, 240);
     //videoTexture.needsUpdate = true;
     texture.needsUpdate = true;
 
@@ -292,10 +376,10 @@ function render() {
     mesh.position.y = targetY; //y - canvas.height / 2;
     mesh.position.z = targetZ;
 
-    mesh.lookAt( camera.position);
+    mesh.lookAt(camera.position);
 
     renderer.render(scene, camera);
 }
 
 
-(function(){var script=document.createElement('script');script.onload=function(){var stats=new Stats();document.body.appendChild(stats.dom);requestAnimationFrame(function loop(){stats.update();requestAnimationFrame(loop)});};script.src='//mrdoob.github.io/stats.js/build/stats.min.js';document.head.appendChild(script);})()
+(function () { var script = document.createElement('script'); script.onload = function () { var stats = new Stats(); document.body.appendChild(stats.dom); requestAnimationFrame(function loop() { stats.update(); requestAnimationFrame(loop) }); }; script.src = '//mrdoob.github.io/stats.js/build/stats.min.js'; document.head.appendChild(script); })()
