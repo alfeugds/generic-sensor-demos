@@ -34,6 +34,7 @@ if ('RelativeOrientationSensor' in window) {
                 // for portrait ZYX, for landscape ZXY
                 let angleOrder = null;
                 screen.orientation.angle === 0 ? angleOrder = 'ZYX' : angleOrder = 'ZXY';
+                //angleOrder = 'ZXY';
                 euler.setFromQuaternion(quaternion, angleOrder);
                 if (!this.initialOriObtained_) {
 
@@ -79,10 +80,12 @@ if ('RelativeOrientationSensor' in window) {
 
         get longitude() {
             return this.longitude_;
+            //return 0
         }
 
         get latitude() {
             return this.latitude_;
+            //return 0
         };
     };
 } else {
@@ -119,6 +122,8 @@ var camera, scene, renderer, oriSensor,
     mesh,
     material, texture,
     acl,
+
+    controls,
 
     canvas, canvas_context, video, video_canvas;
 
@@ -213,10 +218,10 @@ function setToInitialState() {
             speed.y = getDriftValue(speed.y)
             speed.z = getDriftValue(speed.z)
             
-            camera.translateX(speed.x)
-            camera.translateY(speed.y)
-            camera.translateZ(speed.z)
-            console.log(`acl.x, acl.y, acl.z`, acl.x, acl.y, acl.z, acl)
+            // camera.translateX(speed.x)
+            // camera.translateY(speed.y)
+            // camera.translateZ(speed.z)
+            //console.log(`acl.x, acl.y, acl.z`, acl.x, acl.y, acl.z, acl)
         }
         
         speed.timestamp = acl.timestamp
@@ -246,11 +251,11 @@ function init() {
     renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    oriSensor = new RelativeInclinationSensor({ frequency: 60 });
+    oriSensor = new RelativeInclinationSensor({ frequency: 60, referenceFrame: "screen" });
     oriSensor.onreading = render;   // When the sensor sends new values, render again using those
 
 
-    acl = new LinearAccelerationSensor({ frequency: 60 });
+    acl = new LinearAccelerationSensor({ frequency: 60 ,referenceFrame: "screen" });
     acl.addEventListener('activate', setToInitialState);
     acl.start();
 
@@ -281,70 +286,80 @@ function init() {
 
     mesh = new THREE.Mesh(geometry, material);
 
-    mesh.position.x = 140; //x - canvas.width / 2;
-    mesh.position.y = -10; //y - canvas.height / 2;
+    //mesh.position.x = 0; //x - canvas.width / 2;
+    //mesh.position.y = 0; //y - canvas.height / 2;
+    //mesh.position.z = -10; //y - canvas.height / 2;
+    mesh.position.x = -0; //y - canvas.height / 2;
+    mesh.position.z = -300; //y - canvas.height / 2;
+    scene.add(camera)
+    camera.add(mesh)
 
 
     //mesh.lookAt( camera.position);
 
-    scene.add(mesh);
+    //scene.add(mesh);
 
 
     //TEST CUBE
     cube = new THREE.Mesh(new THREE.CubeGeometry(10, 10, 10), new THREE.MeshNormalMaterial());
-    cube.position.y = -35;
-    cube.position.x = 40;
+    cube.position.y = -25;
+    cube.position.x = -100;
     cube.position.z = 0;
     scene.add(cube);
 
     // TextureLoader for loading the image file
-    let textureLoader = new THREE.TextureLoader();
+    // let textureLoader = new THREE.TextureLoader();
 
-    // AudioLoader for loading the audio file
-    let audioLoader = new THREE.AudioLoader();
+    // // AudioLoader for loading the audio file
+    // let audioLoader = new THREE.AudioLoader();
 
-    // Creating the sphere where the image will be projected and adding it to the scene
-    let sphere = new THREE.SphereGeometry(100, 100, 40);
+    // // Creating the sphere where the image will be projected and adding it to the scene
+    // let sphere = new THREE.SphereGeometry(100, 100, 40);
 
-    // The sphere needs to be transformed for the image to render inside it
-    sphere.applyMatrix(new THREE.Matrix4().makeScale(-1, 1, 1));
-    let sphereMaterial = new THREE.MeshBasicMaterial();
+    // // The sphere needs to be transformed for the image to render inside it
+    // sphere.applyMatrix(new THREE.Matrix4().makeScale(-1, 1, 1));
+    // let sphereMaterial = new THREE.MeshBasicMaterial();
 
-    // Use the image as the material for the sphere
-    sphereMaterial.map = textureLoader.load(image);
+    // // Use the image as the material for the sphere
+    // sphereMaterial.map = textureLoader.load(image);
 
-    // Combining geometry and material produces the mesh with the image as its material
-    let sphereMesh = new THREE.Mesh(sphere, sphereMaterial);
-    //scene.add(sphereMesh);
+    // // Combining geometry and material produces the mesh with the image as its material
+    // let sphereMesh = new THREE.Mesh(sphere, sphereMaterial);
+    // //scene.add(sphereMesh);
 
-    // The sound needs to be attached to a mesh, here an invisible one,
-    // in order to be able to be positioned in the scene.
-    // Here the mesh is created and added to the scene
-    let soundmesh = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshBasicMaterial());
+    // // The sound needs to be attached to a mesh, here an invisible one,
+    // // in order to be able to be positioned in the scene.
+    // // Here the mesh is created and added to the scene
+    // let soundmesh = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshBasicMaterial());
 
-    // The position of the mesh is where the sound will come from
-    // Important for directional sound
-    soundmesh.position.set(-40, 0, 0);
-    scene.add(soundmesh);
+    // // The position of the mesh is where the sound will come from
+    // // Important for directional sound
+    // soundmesh.position.set(-40, 0, 0);
+    // scene.add(soundmesh);
 
-    // Add an audio listener to the camera so we can hear the sound
-    let listener = new THREE.AudioListener();
-    camera.add(listener);
+    // // Add an audio listener to the camera so we can hear the sound
+    // let listener = new THREE.AudioListener();
+    // camera.add(listener);
 
-    // Here the sound is loaded and attached to the mesh
-    let sound = new THREE.PositionalAudio(listener);
-    audioLoader.load('resources/ocean.mp3', function (buffer) {
-        sound.setBuffer(buffer);
-        sound.setLoop(true);
-        sound.setRefDistance(40);
-        sound.setRolloffFactor(1);
-        //sound.play();
-    });
-    soundmesh.add(sound);
+    // // Here the sound is loaded and attached to the mesh
+    // let sound = new THREE.PositionalAudio(listener);
+    // audioLoader.load('resources/ocean.mp3', function (buffer) {
+    //     sound.setBuffer(buffer);
+    //     sound.setLoop(true);
+    //     sound.setRefDistance(40);
+    //     sound.setRolloffFactor(1);
+    //     //sound.play();
+    // });
+    // soundmesh.add(sound);
+    
+    controls = new DeviceOrientationController( camera, renderer.domElement );
+    controls.connect();
+
     container.appendChild(renderer.domElement);
 
     // Sensor initialization
     oriSensor.start();
+
 
     // On window resize, also resize canvas so it fills the screen
     window.addEventListener('resize', () => {
@@ -362,24 +377,44 @@ function render() {
     // cube.rotation.y += 0.0225;
     // cube.rotation.z += 0.0175;
 
-    let targetX = (farPlane / 2) * Math.sin(Math.PI / 2 - oriSensor.latitude) * Math.cos(oriSensor.longitude);
-    let targetY = (farPlane / 2) * Math.cos(Math.PI / 2 - oriSensor.latitude);
-    let targetZ = (farPlane / 2) * Math.sin(Math.PI / 2 - oriSensor.latitude) * Math.sin(oriSensor.longitude);
-    camera.lookAt(new THREE.Vector3(targetX, targetY, targetZ));
+    controls.update();
+
+    // let targetX = (farPlane / 2) * Math.sin(Math.PI / 2 - oriSensor.latitude) * Math.cos(oriSensor.longitude);
+    // let targetY = (farPlane / 2) * Math.cos(Math.PI / 2 - oriSensor.latitude);
+    // let targetZ = (farPlane / 2) * Math.sin(Math.PI / 2 - oriSensor.latitude) * Math.sin(oriSensor.longitude);
+    //camera.lookAt(new THREE.Vector3(targetX, targetY, targetZ));
+    //console.log('targetX, targetY, targetZ', targetX, targetY, targetZ)
+
+    let target = THREE.Utils.cameraLookDir(camera);
+
+    //let targetX = camera
 
     // canvas_context = canvas.getContext('2d');
     // canvas_context.drawImage(video, 0, 0, 320, 240);
     //videoTexture.needsUpdate = true;
     texture.needsUpdate = true;
 
-    mesh.position.x = targetX; //x - canvas.width / 2;
-    mesh.position.y = targetY; //y - canvas.height / 2;
-    mesh.position.z = targetZ;
+    // mesh.position.x = targetX; //x - canvas.width / 2;
+    // mesh.position.y = targetY; //y - canvas.height / 2;
+    // mesh.position.z = targetZ;
 
-    mesh.lookAt(camera.position);
+    // mesh.position.x = target.x + 200; //x - canvas.width / 2;
+    // mesh.position.y = target.y + 200; //y - canvas.height / 2;
+    // mesh.position.z = target.z + 200;
+
+    // mesh.lookAt(camera.position);
 
     renderer.render(scene, camera);
 }
+
+THREE.Utils = {
+    cameraLookDir: function(camera) {
+        var vector = new THREE.Vector3(0, 0, 0);
+        //vector.applyEuler(camera.rotation, camera.rotation.order);
+        vector.applyQuaternion( camera.quaternion );
+        return vector;
+    }
+};
 
 
 (function () { var script = document.createElement('script'); script.onload = function () { var stats = new Stats(); document.body.appendChild(stats.dom); requestAnimationFrame(function loop() { stats.update(); requestAnimationFrame(loop) }); }; script.src = '//mrdoob.github.io/stats.js/build/stats.min.js'; document.head.appendChild(script); })()
