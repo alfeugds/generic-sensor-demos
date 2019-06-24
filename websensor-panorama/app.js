@@ -166,73 +166,85 @@ let speed = {
     x:0,
     y:0,
     z:0,
+    ax:0,
+    ay:0,
+    az:0,
     timestamp:0
 }
 
 let i = 0.5
 function getDriftValue(x){
     if(x > -i && x < 0){
-        return x + 0.1        
+        return x /2
     }else if(x > 0 && x < i){
-        return x - 0.1    
+        return x /2
     }
     return x
 }
+
+var koptions = {R: 0.01, Q: 3}
+var kfx = new KalmanFilter(koptions)
+var kfy = new KalmanFilter(koptions)
+var kfz = new KalmanFilter(koptions)
 
 function setToInitialState() {
     var shaking = false;
 
     function onreading() {
-        const shakeTreashold = 3 * 9.8;
-        const stillTreashold = 1;
-        let magnitude = Math.hypot(acl.x, acl.y, acl.z);
-
-        //   camera.position.z += acl.x
-        //   camera.position.y += acl.y
-        //   camera.position.x += acl.z
-
-        const m = 50000
+       
+        if(speed.timestamp === 0){
+            speed.ax = kfx.filter(acl.x)
+            speed.ay = kfx.filter(acl.y)
+            speed.az = kfx.filter(acl.z)
+            speed.timestamp = speed.timestamp || acl.timestamp
+            return;
+        }
         // mesh.position.z += -acl.x * m
         // mesh.position.y += -acl.y * m
         // mesh.position.x += -acl.z * m
         speed.timestamp = speed.timestamp || acl.timestamp
 
-        let time = acl.timestamp - speed.timestamp - 10
+        let time = (acl.timestamp - speed.timestamp) * 0.001
         
-        const limit = 0.00,
-            factor = 0.03
-        
-        if ((acl.x > limit || acl.x < -limit) ||
-        (acl.y > limit || acl.y < -limit) ||
-        (acl.z > limit || acl.z < -limit)) {
-            speed.x = speed.x + acl.x * time
-            speed.y = speed.y + acl.y * time
-            speed.z = speed.z + acl.z * time
-
-            speed.x *= factor
-            speed.y *= factor
-            speed.z *= factor
-
-           
-            speed.x = getDriftValue(speed.x)
-            speed.y = getDriftValue(speed.y)
-            speed.z = getDriftValue(speed.z)
+        const limit = 0.10,
+            factor = 0.08
             
-            // camera.translateX(speed.x)
-            // camera.translateY(speed.y)
-            // camera.translateZ(speed.z)
+        var x = kfx.filter(acl.x),
+            y = kfy.filter(acl.y),
+            z = kfz.filter(acl.z)
+
+        if ((x >= limit && x <= -limit) ||
+        (y => limit && y <= -limit) ||
+        (z => limit && z <= -limit)) {
+
+            console.log(`x, y, z`, x, y, z)
+            speed.x = speed.x + (x + speed.ax) / 2 * time
+            speed.y = speed.y  + (y + speed.ay) / 2 * time
+            speed.z = speed.z + (z + speed.az) / 2 * time
+
+            // speed.x = speed.x + acl.x * time
+            // speed.y = speed.y + acl.y * time
+            // speed.z = speed.z + acl.z * time
+
+            // speed.x *= factor
+            // speed.y *= factor
+            // speed.z *= factor
+
+            // speed.x = getDriftValue(speed.x)
+            // speed.y = getDriftValue(speed.y)
+            // speed.z = getDriftValue(speed.z)
+            
+            //camera.translateX(speed.x)
+            //camera.translateY(speed.y)
+            //camera.translateZ(speed.z)
             //console.log(`acl.x, acl.y, acl.z`, acl.x, acl.y, acl.z, acl)
         }
         
         speed.timestamp = acl.timestamp
-        if (magnitude > shakeTreashold) {
-            console.log('magnitude', magnitude)
-            console.log('shakeTreashold', shakeTreashold)
-            shaking = true;
-        } else if (magnitude < stillTreashold && shaking) {
-            shaking = false;
-            //acl.removeEventListener('reading', onreading);
-        }
+        speed.ax = x
+        speed.ay = y
+        speed.az = z
+        
     }
 
     acl.addEventListener('reading', onreading);
@@ -279,7 +291,7 @@ function init() {
 
     //var geometry = new THREE.PlaneBufferGeometry( 9, 16 );
     var aspect = video.videoWidth / video.videoHeight
-    var width = 560
+    var width = 660
     var geometry = new THREE.PlaneGeometry( width , width / aspect  );
 
     geometry.scale(0.5, 0.5, 0.5);
@@ -298,6 +310,40 @@ function init() {
     //mesh.lookAt( camera.position);
 
     //scene.add(mesh);
+
+    var loader = new THREE.GLTFLoader();
+
+    // Load a glTF resource
+    loader.load(
+        // resource URL
+        'models/coke/scene.gltf',
+        // called when the resource is loaded
+        function ( gltf ) {
+
+            gltf.scene.position.y = -25;
+            gltf.scene.position.x = -100;
+            gltf.scene.position.z = -50;
+            scene.add( gltf.scene );
+
+            gltf.animations; // Array<THREE.AnimationClip>
+            gltf.scene; // THREE.Scene
+            gltf.scenes; // Array<THREE.Scene>
+            gltf.cameras; // Array<THREE.Camera>
+            gltf.asset; // Object
+        },
+        // called while loading is progressing
+        function ( xhr ) {
+
+            console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+
+        },
+        // called when loading has errors
+        function ( error ) {
+
+            console.log( 'An error happened', error );
+
+        }
+    );
 
 
     //TEST CUBE
