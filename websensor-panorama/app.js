@@ -4,112 +4,7 @@
 
 'use strict';
 
-// If generic sensors are enabled and RelativeOrientationSensor is defined, create class normally
-// Otherwise create a fake class
-if ('RelativeOrientationSensor' in window) {
 
-    // This is an inclination sensor that uses RelativeOrientationSensor
-    // and converts the quaternion to Euler angles, returning the longitude and latitude
-    window.RelativeInclinationSensor = class RelativeInclinationSensor extends RelativeOrientationSensor {
-        constructor(options) {
-            super(options);
-            this.longitude_ = 0;
-            this.latitude_ = 0;
-            this.longitudeInitial_ = 0;
-            this.initialOriObtained_ = false;
-            this.func_ = null;
-
-            super.onreading = () => {
-
-                // Conversion to Euler angles done in THREE.js so we have to create a
-                // THREE.js object for holding the quaternion to convert from
-                // Order x,y,z,w
-                let quaternion = new THREE.Quaternion(super.quaternion[0], super.quaternion[1],
-                    super.quaternion[2], super.quaternion[3]);
-
-                // euler will hold the Euler angles corresponding to the quaternion
-                let euler = new THREE.Euler(0, 0, 0);
-
-                // Order of rotations must be adapted depending on orientation
-                // for portrait ZYX, for landscape ZXY
-                let angleOrder = null;
-                screen.orientation.angle === 0 ? angleOrder = 'ZYX' : angleOrder = 'ZXY';
-                //angleOrder = 'ZXY';
-                euler.setFromQuaternion(quaternion, angleOrder);
-                if (!this.initialOriObtained_) {
-
-                    // Initial longitude needed to make the initial camera orientation
-                    // the same every time
-                    this.longitudeInitial_ = -euler.z;
-                    if (screen.orientation.angle === 90) {
-                        this.longitudeInitial_ = this.longitudeInitial_ + Math.PI / 2;
-                    }
-                    this.initialOriObtained_ = true;
-                }
-
-                // Device orientation changes need to be taken into account
-                // when reading the sensor values by adding offsets
-                // Also the axis of rotation might change
-                switch (screen.orientation.angle) {
-
-                    // In case there are other screen orientation angle values,
-                    // for example 180 degrees (not implemented in Chrome), default is used
-                    default:
-                    case 0:
-                        this.longitude_ = -euler.z - this.longitudeInitial_;
-                        this.latitude_ = euler.x - Math.PI / 2;
-                        break;
-                    case 90:
-                        this.longitude_ = -euler.z - this.longitudeInitial_ + Math.PI / 2;
-                        this.latitude_ = -euler.y - Math.PI / 2;
-                        break;
-                    case 270:
-                        this.longitude_ = -euler.z - this.longitudeInitial_ - Math.PI / 2;
-                        this.latitude_ = euler.y - Math.PI / 2;
-                        break;
-                }
-
-                if (this.func_ !== null)
-                    this.func_();
-            };
-        }
-
-        set onreading(func) {
-            this.func_ = func;
-        }
-
-        get longitude() {
-            return this.longitude_;
-            //return 0
-        }
-
-        get latitude() {
-            return this.latitude_;
-            //return 0
-        };
-    };
-} else {
-
-    // Fake interface
-    window.RelativeInclinationSensor = class RelativeInclinationSensor {
-        constructor(options) {
-            this.start = function () { };
-        }
-
-        set onreading(func) { }
-
-        get longitude() {
-            return 0;
-        }
-
-        get latitude() {
-            return 0;
-        }
-    };
-
-    // Inform the user that generic sensors are not enabled
-    document.getElementById("no-sensors").style.display = "block";
-}
 
 // Camera constants
 const farPlane = 550, fov = 75;
@@ -124,6 +19,8 @@ var camera, scene, renderer, oriSensor,
     acl,
 
     controls,
+    mixer,
+    model,
 
     canvas, canvas_context, video, video_canvas;
 
@@ -217,7 +114,7 @@ function setToInitialState() {
         (y => limit && y <= -limit) ||
         (z => limit && z <= -limit)) {
 
-            console.log(`x, y, z`, x, y, z)
+            //console.log(`x, y, z`, x, y, z)
             speed.x = speed.x + (x + speed.ax) / 2 * time
             speed.y = speed.y  + (y + speed.ay) / 2 * time
             speed.z = speed.z + (z + speed.az) / 2 * time
@@ -255,7 +152,6 @@ function setToInitialState() {
 function init() {
 
     const container = document.querySelector('#app-view');
-    let image = "resources/beach_dinner.jpg";
 
     // three.js scene setup below
     camera = new THREE.PerspectiveCamera(fov, window.innerWidth / window.innerHeight, 1, farPlane);
@@ -263,26 +159,18 @@ function init() {
     renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    oriSensor = new RelativeInclinationSensor({ frequency: 60, referenceFrame: "screen" });
-    oriSensor.onreading = render;   // When the sensor sends new values, render again using those
+
+
+    var light = new THREE.AmbientLight( 0x404040, 2 ); // soft white light
+    scene.add( light );
+    //renderer.gammaOutput = true
+    //oriSensor = new RelativeInclinationSensor({ frequency: 60, referenceFrame: "screen" });
+    //oriSensor.onreading = render;   // When the sensor sends new values, render again using those
 
 
     acl = new LinearAccelerationSensor({ frequency: 60 ,referenceFrame: "screen" });
     acl.addEventListener('activate', setToInitialState);
     acl.start();
-
-    //videoTexture = new THREE.Texture( canvas );
-    // videoTexture.minFilter = THREE.LinearFilter;
-    // videoTexture.magFilter = THREE.LinearFilter;
-
-    // movieMaterial = new THREE.MeshBasicMaterial( { map: videoTexture, overdraw: true, side:THREE.DoubleSide } );
-    //obj.children[i].material = movieMaterial;
-
-    // var x = window.innerWidth / 2 - 300;
-    // var y = window.innerHeight / 2 - 300;
-    // var mesh = new THREE.Mesh(new THREE.PlaneGeometry(canvas.width, canvas.height, 10, 10), movieMaterial);
-    // mesh.overdraw = true;
-    // mesh.doubleSided = true;
 
     texture = new THREE.VideoTexture(video);
     texture.minFilter = THREE.LinearFilter;
@@ -298,38 +186,38 @@ function init() {
 
     mesh = new THREE.Mesh(geometry, material);
 
-    //mesh.position.x = 0; //x - canvas.width / 2;
-    //mesh.position.y = 0; //y - canvas.height / 2;
-    //mesh.position.z = -10; //y - canvas.height / 2;
     mesh.position.x = -0; //y - canvas.height / 2;
     mesh.position.z = -300; //y - canvas.height / 2;
     scene.add(camera)
     camera.add(mesh)
-
-
-    //mesh.lookAt( camera.position);
-
-    //scene.add(mesh);
 
     var loader = new THREE.GLTFLoader();
 
     // Load a glTF resource
     loader.load(
         // resource URL
-        'models/coke/scene.gltf',
+        'models/bee/bee.glb',
         // called when the resource is loaded
         function ( gltf ) {
 
+            model = gltf.scene;
+
+            scene.add( gltf.scene );
             gltf.scene.position.y = -25;
             gltf.scene.position.x = -100;
-            gltf.scene.position.z = -50;
-            scene.add( gltf.scene );
+            gltf.scene.position.z = -70;
 
-            gltf.animations; // Array<THREE.AnimationClip>
-            gltf.scene; // THREE.Scene
-            gltf.scenes; // Array<THREE.Scene>
-            gltf.cameras; // Array<THREE.Camera>
-            gltf.asset; // Object
+            mixer = new THREE.AnimationMixer( gltf.scene );
+            gltf.animations.forEach(( clip ) => {
+                mixer.clipAction(clip).play();
+            });
+            t0 = Date.now();
+
+            //gltf.animations // Array<THREE.AnimationClip>
+            // gltf.scene; // THREE.Scene
+            // gltf.scenes; // Array<THREE.Scene>
+            // gltf.cameras; // Array<THREE.Camera>
+            // gltf.asset; // Object
         },
         // called while loading is progressing
         function ( xhr ) {
@@ -352,51 +240,6 @@ function init() {
     cube.position.x = -100;
     cube.position.z = 0;
     scene.add(cube);
-
-    // TextureLoader for loading the image file
-    // let textureLoader = new THREE.TextureLoader();
-
-    // // AudioLoader for loading the audio file
-    // let audioLoader = new THREE.AudioLoader();
-
-    // // Creating the sphere where the image will be projected and adding it to the scene
-    // let sphere = new THREE.SphereGeometry(100, 100, 40);
-
-    // // The sphere needs to be transformed for the image to render inside it
-    // sphere.applyMatrix(new THREE.Matrix4().makeScale(-1, 1, 1));
-    // let sphereMaterial = new THREE.MeshBasicMaterial();
-
-    // // Use the image as the material for the sphere
-    // sphereMaterial.map = textureLoader.load(image);
-
-    // // Combining geometry and material produces the mesh with the image as its material
-    // let sphereMesh = new THREE.Mesh(sphere, sphereMaterial);
-    // //scene.add(sphereMesh);
-
-    // // The sound needs to be attached to a mesh, here an invisible one,
-    // // in order to be able to be positioned in the scene.
-    // // Here the mesh is created and added to the scene
-    // let soundmesh = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshBasicMaterial());
-
-    // // The position of the mesh is where the sound will come from
-    // // Important for directional sound
-    // soundmesh.position.set(-40, 0, 0);
-    // scene.add(soundmesh);
-
-    // // Add an audio listener to the camera so we can hear the sound
-    // let listener = new THREE.AudioListener();
-    // camera.add(listener);
-
-    // // Here the sound is loaded and attached to the mesh
-    // let sound = new THREE.PositionalAudio(listener);
-    // audioLoader.load('resources/ocean.mp3', function (buffer) {
-    //     sound.setBuffer(buffer);
-    //     sound.setLoop(true);
-    //     sound.setRefDistance(40);
-    //     sound.setRolloffFactor(1);
-    //     //sound.play();
-    // });
-    // soundmesh.add(sound);
     
     controls = new DeviceOrientationController( camera, renderer.domElement );
     controls.connect();
@@ -404,7 +247,7 @@ function init() {
     container.appendChild(renderer.domElement);
 
     // Sensor initialization
-    oriSensor.start();
+    //oriSensor.start();
 
 
     // On window resize, also resize canvas so it fills the screen
@@ -417,40 +260,34 @@ function init() {
     render();
 }
 
+var t0, t1;
+function getDelta(){
+    return Math.floor((Date.now() - t0) / 1000)
+}
+
 // Renders the scene, orienting the camera according to the longitude and latitude
 function render() {
     // cube.rotation.x += 0.02;
     // cube.rotation.y += 0.0225;
     // cube.rotation.z += 0.0175;
 
+    if(model){
+        //model.position.y += 0.02
+        model.rotation.y += 0.005
+        //model.position.z += 0.08
+        model.translateZ(0.5)
+    }
+
     controls.update();
 
-    // let targetX = (farPlane / 2) * Math.sin(Math.PI / 2 - oriSensor.latitude) * Math.cos(oriSensor.longitude);
-    // let targetY = (farPlane / 2) * Math.cos(Math.PI / 2 - oriSensor.latitude);
-    // let targetZ = (farPlane / 2) * Math.sin(Math.PI / 2 - oriSensor.latitude) * Math.sin(oriSensor.longitude);
-    //camera.lookAt(new THREE.Vector3(targetX, targetY, targetZ));
-    //console.log('targetX, targetY, targetZ', targetX, targetY, targetZ)
+    //mixer && mixer.update(getDelta())
+    mixer && mixer.update(0.03)
 
-    let target = THREE.Utils.cameraLookDir(camera);
-
-    //let targetX = camera
-
-    // canvas_context = canvas.getContext('2d');
-    // canvas_context.drawImage(video, 0, 0, 320, 240);
-    //videoTexture.needsUpdate = true;
     texture.needsUpdate = true;
 
-    // mesh.position.x = targetX; //x - canvas.width / 2;
-    // mesh.position.y = targetY; //y - canvas.height / 2;
-    // mesh.position.z = targetZ;
-
-    // mesh.position.x = target.x + 200; //x - canvas.width / 2;
-    // mesh.position.y = target.y + 200; //y - canvas.height / 2;
-    // mesh.position.z = target.z + 200;
-
-    // mesh.lookAt(camera.position);
-
     renderer.render(scene, camera);
+
+    requestAnimationFrame(render)
 }
 
 THREE.Utils = {
